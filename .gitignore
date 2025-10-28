@@ -1,0 +1,27 @@
+# Environment variables - QUAN TRỌNG NHẤT
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Virtual environment
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
