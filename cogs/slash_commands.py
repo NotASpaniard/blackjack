@@ -148,8 +148,8 @@ class DoubleButton(discord.ui.Button):
         # Kiểm tra số dư
         from config import config
         if view.user_id not in config.ADMIN_IDS:
-            balance = view.db.get_user_balance(view.user_id, view.guild_id).balance
-            if balance < view.game.bet:
+            balance_obj = view.db.get_user_balance(view.user_id, view.guild_id)
+            if balance_obj.balance < view.game.bet:
                 await interaction.followup.send("❌ Bạn không đủ tiền để double!", ephemeral=True)
                 return
             
@@ -179,9 +179,7 @@ class SlashCommandsCog(commands.Cog):
     def get_user_balance(self, user_id: int, guild_id: int) -> int:
         """Lấy số dư của user"""
         try:
-            balance_obj = self.bot.db.get_user_balance(user_id, guild_id)
-            if not balance_obj:
-                balance_obj = self.bot.db.create_user_balance(user_id, guild_id)
+            balance_obj = self.bot.db.get_or_create_user_balance(user_id, guild_id)
             return balance_obj.balance
         except Exception as e:
             print(f"Error getting balance for {user_id}: {e}")
@@ -201,7 +199,9 @@ class SlashCommandsCog(commands.Cog):
             target = member or interaction.user
             print(f"Checking balance for user: {target.id}, guild: {interaction.guild.id}")
             
-            balance = self.get_user_balance(target.id, interaction.guild.id)
+            # Đảm bảo user có balance record
+            balance_obj = self.db.get_or_create_user_balance(target.id, interaction.guild.id)
+            balance = balance_obj.balance
             
             if self.is_admin(target.id):
                 balance_text = "♾️ Vô hạn (Admin)"
@@ -232,10 +232,12 @@ class SlashCommandsCog(commands.Cog):
             user_id = interaction.user.id
             guild_id = interaction.guild.id
             
+            # Đảm bảo user có balance record
+            balance_obj = self.db.get_or_create_user_balance(user_id, guild_id)
+            
             # Kiểm tra số dư
             if not self.is_admin(user_id):
-                balance = self.get_user_balance(user_id, guild_id)
-                if balance < bet:
+                if balance_obj.balance < bet:
                     await interaction.response.send_message("❌ Bạn không đủ tiền để đặt cược!", ephemeral=True)
                     return
 
@@ -352,10 +354,12 @@ class SlashCommandsCog(commands.Cog):
 
             total_bet = bet_per_animal * len(animals)
             
+            # Đảm bảo user có balance record
+            balance_obj = self.db.get_or_create_user_balance(user_id, guild_id)
+            
             # Kiểm tra số dư
             if not self.is_admin(user_id):
-                balance = self.get_user_balance(user_id, guild_id)
-                if balance < total_bet:
+                if balance_obj.balance < total_bet:
                     await interaction.response.send_message("❌ Bạn không đủ tiền để đặt cược!", ephemeral=True)
                     return
 
@@ -445,10 +449,12 @@ class SlashCommandsCog(commands.Cog):
                 await interaction.response.send_message("❌ Loại cược không hợp lệ!", ephemeral=True)
                 return
             
+            # Đảm bảo user có balance record
+            balance_obj = self.db.get_or_create_user_balance(user_id, guild_id)
+            
             # Kiểm tra số dư
             if not self.is_admin(user_id):
-                balance = self.get_user_balance(user_id, guild_id)
-                if balance < bet:
+                if balance_obj.balance < bet:
                     await interaction.response.send_message("❌ Bạn không đủ tiền để đặt cược!", ephemeral=True)
                     return
             
@@ -514,9 +520,12 @@ class SlashCommandsCog(commands.Cog):
                 await interaction.response.send_message("❌ Bạn không thể chuyển tiền cho chính mình!", ephemeral=True)
                 return
             
+            # Đảm bảo cả 2 user đều có balance record
+            sender_balance_obj = self.db.get_or_create_user_balance(interaction.user.id, interaction.guild.id)
+            receiver_balance_obj = self.db.get_or_create_user_balance(member.id, interaction.guild.id)
+            
             # Kiểm tra số dư
-            sender_balance = self.get_user_balance(interaction.user.id, interaction.guild.id)
-            if sender_balance < amount:
+            if sender_balance_obj.balance < amount:
                 await interaction.response.send_message("❌ Bạn không đủ tiền để chuyển!", ephemeral=True)
                 return
             
@@ -562,6 +571,9 @@ class SlashCommandsCog(commands.Cog):
                 await interaction.response.send_message("❌ Số tiền phải lớn hơn 0!", ephemeral=True)
                 return
             
+            # Đảm bảo user có balance record
+            self.db.get_or_create_user_balance(member.id, interaction.guild.id)
+            
             self.db.update_balance(member.id, interaction.guild.id, amount)
             self.db.add_transaction(
                 member.id, interaction.guild.id, amount, "admin",
@@ -595,7 +607,9 @@ class SlashCommandsCog(commands.Cog):
                 await interaction.response.send_message("❌ Số tiền phải lớn hơn 0!", ephemeral=True)
                 return
             
-            current_balance = self.db.get_user_balance(member.id, interaction.guild.id).balance
+            # Đảm bảo user có balance record
+            balance_obj = self.db.get_or_create_user_balance(member.id, interaction.guild.id)
+            current_balance = balance_obj.balance
             remove_amount = min(amount, current_balance)
             
             self.db.update_balance(member.id, interaction.guild.id, -remove_amount)

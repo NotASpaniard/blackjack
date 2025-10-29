@@ -34,47 +34,56 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def get_user_balance(self, user_id: int, guild_id: int) -> Optional[UserBalance]:
-        """Lấy số dư của user"""
+    def get_or_create_user_balance(self, user_id: int, guild_id: int) -> UserBalance:
+        """Lấy hoặc tạo balance mới cho user"""
         session = self.Session()
         try:
-            return session.query(UserBalance).filter(
+            balance = session.query(UserBalance).filter(
                 and_(UserBalance.user_id == user_id, UserBalance.guild_id == guild_id)
             ).first()
+            
+            if not balance:
+                # Lấy starting balance từ guild config
+                guild_config = self.get_guild_config(guild_id)
+                starting_balance = guild_config.starting_balance if guild_config else config.STARTING_BALANCE
+                
+                balance = UserBalance(
+                    user_id=user_id,
+                    guild_id=guild_id,
+                    balance=starting_balance
+                )
+                session.add(balance)
+                session.commit()
+                print(f"✅ Created balance for user {user_id} in guild {guild_id}: {starting_balance}")
+            
+            return balance
+        except Exception as e:
+            session.rollback()
+            print(f"❌ Error in get_or_create_user_balance: {e}")
+            raise
         finally:
             session.close()
     
+    def get_user_balance(self, user_id: int, guild_id: int) -> Optional[UserBalance]:
+        """Lấy số dư của user (giữ nguyên cho tương thích)"""
+        return self.get_or_create_user_balance(user_id, guild_id)
+    
     def create_user_balance(self, user_id: int, guild_id: int, balance: int = None) -> UserBalance:
         """Tạo balance mới cho user"""
-        session = self.Session()
-        try:
-            guild_config = self.get_guild_config(guild_id)
-            starting_balance = guild_config.starting_balance if guild_config else config.STARTING_BALANCE
-            
-            balance_obj = UserBalance(
-                user_id=user_id,
-                guild_id=guild_id,
-                balance=balance or starting_balance
-            )
-            session.add(balance_obj)
-            session.commit()
-            return balance_obj
-        finally:
-            session.close()
+        return self.get_or_create_user_balance(user_id, guild_id)
     
     def update_balance(self, user_id: int, guild_id: int, amount: int) -> bool:
         """Cập nhật số dư của user"""
         session = self.Session()
         try:
-            balance = self.get_user_balance(user_id, guild_id)
-            if not balance:
-                balance = self.create_user_balance(user_id, guild_id)
-            
+            balance = self.get_or_create_user_balance(user_id, guild_id)
             balance.balance += amount
             session.commit()
+            print(f"✅ Updated balance for user {user_id}: {amount}")
             return True
         except Exception as e:
             session.rollback()
+            print(f"❌ Error updating balance: {e}")
             return False
         finally:
             session.close()
@@ -92,6 +101,10 @@ class DatabaseManager:
             )
             session.add(transaction)
             session.commit()
+            print(f"✅ Added transaction for user {user_id}: {description}")
+        except Exception as e:
+            session.rollback()
+            print(f"❌ Error adding transaction: {e}")
         finally:
             session.close()
     
