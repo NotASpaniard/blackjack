@@ -1,0 +1,16 @@
+{
+    "name": "discord-casino-bot",
+    "version": "1.0.0",
+    "description": "Discord Casino Bot with multiple games",
+    "scripts": {
+        "start": "python main.py",
+        "dev": "python main.py",
+        "install-deps": "pip install -r requirements.txt",
+        "setup": "python -m venv venv && pip install -r requirements.txt",
+        "activate-win": "venv\\Scripts\\activate",
+        "activate-unix": "source venv/bin/activate"
+    },
+    "keywords": ["discord", "bot", "casino", "python"],
+    "author": "Your Name",
+    "license": "MIT"
+}
